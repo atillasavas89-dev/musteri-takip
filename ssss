@@ -1,0 +1,1288 @@
+const firebaseConfig = {
+  apiKey: "AIzaSyA1fVYENtzG2yb1kRQEcW4svUISylnwoSk",
+  authDomain: "atilla-musteri-takip.firebaseapp.com",
+  projectId: "atilla-musteri-takip",
+  storageBucket: "atilla-musteri-takip.firebasestorage.app",
+  messagingSenderId: "530707599328",
+  appId: "1:530707599328:web:68cc218af635c2fff7e585"
+};
+
+// Firebase'i başlat (Compat sürümü)
+firebase.initializeApp(firebaseConfig);
+
+// Firestore referansı
+const db = firebase.firestore();
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AtillaSavaş - Müşteri Takip</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fa-solid fa-chart-pie"></i>
+                <span>AtillaSavaş</span>
+            </div>
+            <nav class="menu">
+                <a href="#" class="menu-item active"><i class="fa-solid fa-house"></i><span>Panel</span></a>
+                <a href="#" class="menu-item" onclick="exportToCSV()"><i class="fa-solid fa-download"></i><span>Dışa
+                        Aktar</span></a>
+            </nav>
+            <div class="user-profile">
+                <div class="avatar">A</div>
+                <div class="info">
+                    <span class="name">Atilla</span>
+                    <span class="role">Yönetici</span>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="top-header">
+                <div class="month-selector">
+                    <button id="prevMonth" class="icon-btn"><i class="fa-solid fa-chevron-left"></i></button>
+                    <h2 id="currentMonthDisplay">Kasım 2025</h2>
+                    <button id="nextMonth" class="icon-btn"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+                <div class="view-toggles">
+                    <button class="toggle-btn active" id="btnMonthly">Aylık Görünüm</button>
+                    <button class="toggle-btn" id="btnCumulative">Kümülatif Durum</button>
+                </div>
+            </header>
+
+            <div class="content-wrapper">
+                <div class="cards-grid">
+                    <div class="card">
+                        <div class="card-icon green"><i class="fa-solid fa-file-circle-check"></i></div>
+                        <div class="card-info">
+                            <h3>Verilen Beyanname</h3>
+                            <p class="amount" id="totalSubmitted">0</p>
+                            <span class="subtitle">Bu ay için</span>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon orange"><i class="fa-solid fa-clock"></i></div>
+                        <div class="card-info">
+                            <h3>Verilecek Beyanname</h3>
+                            <p class="amount" id="totalPending">0</p>
+                            <span class="subtitle">Bu ay için</span>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon blue"><i class="fa-solid fa-wallet"></i></div>
+                        <div class="card-info">
+                            <h3>Toplam Alacak</h3>
+                            <p class="amount" id="totalReceivable">0.00 ₺</p>
+                            <span class="trend positive">Bu ay</span>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon green"><i class="fa-solid fa-check-circle"></i></div>
+                        <div class="card-info">
+                            <h3>Tahsil Edilen</h3>
+                            <p class="amount" id="totalCollected">0.00 ₺</p>
+                            <span class="subtitle">Bu ay için</span>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon purple"><i class="fa-solid fa-users"></i></div>
+                        <div class="card-info">
+                            <h3>Aktif Müşteri</h3>
+                            <p class="amount" id="activeCustomerCount">0</p>
+                            <span class="subtitle">Toplam kayıtlı</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Müşteri Listesi</h3>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <input type="text" id="searchInput" placeholder="🔍 Müşteri ara..."
+                                style="padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border); background: var(--bg-dark); color: var(--text-primary); min-width: 200px;">
+                            <select id="statusFilter"
+                                style="padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border); background: var(--bg-dark); color: var(--text-primary);">
+                                <option value="all">Tüm Durumlar</option>
+                                <option value="Active">Aktif</option>
+                                <option value="Closed">Kapalı</option>
+                            </select>
+                            <button id="btnNewCustomer" class="btn-primary"><i class="fa-solid fa-plus"></i> Yeni
+                                Müşteri</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Müşteri Adı</th>
+                                    <th>Aylık Ücret</th>
+                                    <th>Ücret Durumu</th>
+                                    <th>Durum</th>
+                                    <th>Beyannameler (Bu Ay)</th>
+                                    <th>İşlem</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customerTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="modalOverlay" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Yeni Müşteri Ekle</h2>
+                <button id="closeModal" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="addCustomerForm">
+                    <h3 class="form-section-title">Temel Bilgiler</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Müşteri / Firma Adı</label>
+                            <input type="text" name="name" required placeholder="Örn: Mavi Yazılım A.Ş.">
+                        </div>
+                        <div class="form-group">
+                            <label>Firma Türü</label>
+                            <select name="companyType">
+                                <option value="sahis">Şahıs İşletmesi</option>
+                                <option value="sahis_bilanco">Şahıs Bilanço</option>
+                                <option value="ltd">Limited Şirket</option>
+                                <option value="as">Anonim Şirket</option>
+                            </select>
+                        </div>
+                        <div class="form-group full-width">
+                            <label>Adres</label>
+                            <input type="text" name="address" placeholder="Tam adres...">
+                        </div>
+                        <div class="form-group">
+                            <label>Telefon</label>
+                            <input type="tel" name="phone" placeholder="0555 555 55 55">
+                        </div>
+                        <div class="form-group">
+                            <label>E-posta</label>
+                            <input type="email" name="email" placeholder="info@ornek.com">
+                        </div>
+                    </div>
+
+                    <h3 class="form-section-title">Resmi Bilgiler</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Vergi / TC No</label>
+                            <input type="text" name="taxId" required placeholder="10 veya 11 haneli">
+                        </div>
+                        <div class="form-group">
+                            <label>Vergi Dairesi</label>
+                            <input type="text" name="taxOffice">
+                        </div>
+                        <div class="form-group">
+                            <label>Mersis No</label>
+                            <input type="text" name="mersis">
+                        </div>
+                        <div class="form-group">
+                            <label>Ticaret Sicil No</label>
+                            <input type="text" name="tradeRegistry">
+                        </div>
+                    </div>
+
+                    <h3 class="form-section-title">Ortaklar</h3>
+                    <div id="partnersContainer">
+                        <div class="partner-row">
+                            <input type="text" placeholder="Ad Soyad" class="partner-name">
+                            <input type="text" placeholder="TC No" class="partner-tc">
+                        </div>
+                    </div>
+                    <button type="button" id="addPartnerBtn" class="btn-secondary text-sm">+ Ortak Ekle</button>
+
+                    <h3 class="form-section-title">Ayarlar ve Beyannameler</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Aylık Ücret (₺)</label>
+                            <input type="number" name="monthlyFee" placeholder="Örn: 5000" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>Açılış Tarihi</label>
+                            <input type="date" name="openingDate">
+                        </div>
+                        <div class="form-group">
+                            <label>İşçisi Var mı?</label>
+                            <select name="hasEmployees">
+                                <option value="no">Yok</option>
+                                <option value="yes">Var</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>E-Defter Durumu</label>
+                            <select name="eLedger">
+                                <option value="none">Yok</option>
+                                <option value="monthly">Aylık</option>
+                                <option value="quarterly">3 Aylık</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label>Takip Edilecek Beyannameler</label>
+                        <div class="checkbox-group">
+                            <label><input type="checkbox" name="declarations" value="KDV"> KDV</label>
+                            <label><input type="checkbox" name="declarations" value="KDV2"> KDV 2</label>
+                            <label><input type="checkbox" name="declarations" value="MUHSGK"> MUHSGK</label>
+                            <label><input type="checkbox" name="declarations" value="GECICI"> Geçici Vergi</label>
+                            <label><input type="checkbox" name="declarations" value="YILLIK"> Yıllık
+                                (Gelir/Kurumlar)</label>
+                            <label><input type="checkbox" name="declarations" value="EDEFTER"> E-Defter</label>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" id="cancelBtn" class="btn-secondary">İptal</button>
+                        <button type="submit" class="btn-primary">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <!-- Firebase Config -->
+    <script src="firebase-config.js"></script>
+
+    <!-- Main Script -->
+    <script src="script.js"></script>
+</body>
+
+</html>
+// ====================
+// FIREBASE & STATE MANAGEMENT
+// ====================
+let customers = [];
+let currentDate = new Date(2025, 10, 1); // November 2025
+let currentView = 'monthly';
+let statusFilter = 'all';
+
+// Firestore collection reference
+const customersRef = db.collection('customers');
+
+// ====================
+// DOM ELEMENTS
+// ====================
+const els = {
+    prevMonthBtn: document.getElementById('prevMonth'),
+    nextMonthBtn: document.getElementById('nextMonth'),
+    currentMonthDisplay: document.getElementById('currentMonthDisplay'),
+    btnMonthly: document.getElementById('btnMonthly'),
+    btnCumulative: document.getElementById('btnCumulative'),
+    customerTableBody: document.getElementById('customerTableBody'),
+    totalSubmitted: document.getElementById('totalSubmitted'),
+    totalPending: document.getElementById('totalPending'),
+    totalReceivable: document.getElementById('totalReceivable'),
+    totalCollected: document.getElementById('totalCollected'),
+    activeCustomerCount: document.getElementById('activeCustomerCount'),
+    modalOverlay: document.getElementById('modalOverlay'),
+    openModalBtn: document.getElementById('btnNewCustomer'),
+    closeModalBtn: document.getElementById('closeModal'),
+    cancelBtn: document.getElementById('cancelBtn'),
+    addCustomerForm: document.getElementById('addCustomerForm'),
+    addPartnerBtn: document.getElementById('addPartnerBtn'),
+    partnersContainer: document.getElementById('partnersContainer'),
+    searchInput: document.getElementById('searchInput'),
+    statusFilterSelect: document.getElementById('statusFilter')
+};
+
+// ====================
+// FIREBASE OPERATIONS
+// ====================
+function loadCustomers() {
+    // Real-time listener for customers
+    customersRef.onSnapshot((snapshot) => {
+        customers = [];
+        snapshot.forEach((doc) => {
+            customers.push({ id: doc.id, ...doc.data() });
+        });
+        updateDisplay();
+    }, (error) => {
+        console.error("Error loading customers:", error);
+        alert("Veriler yüklenirken hata oluştu. Lütfen sayfayı yenileyin.");
+    });
+}
+
+async function saveCustomer(customerData) {
+    try {
+        if (customerData.id && customerData.id !== 'new') {
+            // Update existing
+            await customersRef.doc(customerData.id).update(customerData);
+        } else {
+            // Add new
+            delete customerData.id;
+            await customersRef.add(customerData);
+        }
+    } catch (error) {
+        console.error("Error saving customer:", error);
+        alert("Müşteri kaydedilirken hata oluştu!");
+    }
+}
+
+async function deleteCustomerFromDB(id) {
+    try {
+        await customersRef.doc(id).delete();
+    } catch (error) {
+        console.error("Error deleting customer:", error);
+        alert("Müşteri silinirken hata oluştu!");
+    }
+}
+
+async function updateCustomerField(id, field, value) {
+    try {
+        await customersRef.doc(id).update({ [field]: value });
+    } catch (error) {
+        console.error("Error updating customer:", error);
+    }
+}
+
+// ====================
+// DECLARATION LOGIC
+// ====================
+const DECLARATION_TYPES = {
+    'KDV': { name: 'KDV', deadline: 28 },
+    'KDV2': { name: 'KDV 2', deadline: 28 },
+    'MUHSGK': { name: 'MUHSGK', deadline: 26 },
+    'GECICI': { name: 'Geçici', deadline: 17 },
+    'YILLIK': { name: 'Yıllık', deadline: 30 },
+    'EDEFTER': { name: 'E-Defter', deadline: 30 }
+};
+
+function getRequiredDeclarations(customer, date) {
+    const month = date.getMonth();
+    const required = [];
+
+    if (customer.declarations.includes('KDV')) required.push('KDV');
+    if (customer.declarations.includes('KDV2')) required.push('KDV2');
+
+    if (customer.declarations.includes('MUHSGK')) {
+        if (customer.hasEmployees === 'yes') {
+            required.push('MUHSGK');
+        } else {
+            if ([0, 3, 6, 9].includes(month)) {
+                required.push('MUHSGK');
+            }
+        }
+    }
+
+    if (customer.declarations.includes('GECICI')) {
+        if ([1, 4, 7, 10].includes(month)) {
+            required.push('GECICI');
+        }
+    }
+
+    if (customer.declarations.includes('YILLIK')) {
+        if (customer.companyType === 'sahis' || customer.companyType === 'sahis_bilanco') {
+            if (month === 2) required.push('YILLIK');
+        } else {
+            if (month === 3) required.push('YILLIK');
+        }
+    }
+
+    if (customer.declarations.includes('EDEFTER') && customer.eLedger !== 'none') {
+        if (customer.eLedger === 'monthly') {
+            required.push('EDEFTER');
+        } else if (customer.eLedger === 'quarterly') {
+            if ([1, 4, 7, 10].includes(month)) {
+                required.push('EDEFTER');
+            }
+        }
+    }
+
+    return required;
+}
+
+// ====================
+// INITIALIZATION
+// ====================
+function init() {
+    setupEventListeners();
+    loadCustomers(); // Load from Firebase
+    checkUpcomingDeadlines();
+}
+
+function setupEventListeners() {
+    els.prevMonthBtn.addEventListener('click', () => changeMonth(-1));
+    els.nextMonthBtn.addEventListener('click', () => changeMonth(1));
+
+    els.btnMonthly.addEventListener('click', () => switchView('monthly'));
+    els.btnCumulative.addEventListener('click', () => switchView('cumulative'));
+
+    if (els.openModalBtn) els.openModalBtn.addEventListener('click', openModal);
+    els.closeModalBtn.addEventListener('click', closeModal);
+    els.cancelBtn.addEventListener('click', closeModal);
+    els.modalOverlay.addEventListener('click', (e) => {
+        if (e.target === els.modalOverlay) closeModal();
+    });
+
+    els.addPartnerBtn.addEventListener('click', addPartnerField);
+    els.addCustomerForm.addEventListener('submit', handleFormSubmit);
+
+    els.searchInput.addEventListener('input', updateDisplay);
+    els.statusFilterSelect.addEventListener('change', (e) => {
+        statusFilter = e.target.value;
+        updateDisplay();
+    });
+}
+
+// ====================
+// UTILITY FUNCTIONS
+// ====================
+function changeMonth(delta) {
+    currentDate.setMonth(currentDate.getMonth() + delta);
+    updateDisplay();
+}
+
+function switchView(view) {
+    currentView = view;
+    els.btnMonthly.classList.toggle('active', view === 'monthly');
+    els.btnCumulative.classList.toggle('active', view === 'cumulative');
+    updateDisplay();
+}
+
+function getMonthKey(date) {
+    return `${date.getFullYear()}-${date.getMonth()}`;
+}
+
+// ====================
+// CORE LOGIC
+// ====================
+function updateDisplay() {
+    const trMonth = currentDate.toLocaleString('tr-TR', { month: 'long', year: 'numeric' });
+    els.currentMonthDisplay.textContent = trMonth;
+
+    const searchTerm = els.searchInput.value.toLowerCase();
+    const filteredCustomers = customers.filter(c => {
+        const matchesSearch = c.name.toLowerCase().includes(searchTerm);
+        const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
+        return matchesSearch && matchesStatus;
+    });
+
+    if (currentView === 'monthly') {
+        renderMonthlyView(filteredCustomers);
+    } else {
+        renderCumulativeView(filteredCustomers);
+    }
+}
+
+function renderMonthlyView(filteredCustomers) {
+    els.customerTableBody.innerHTML = '';
+    const monthKey = getMonthKey(currentDate);
+
+    let stats = {
+        submitted: 0,
+        pending: 0,
+        receivable: 0,
+        collected: 0,
+        active: 0
+    };
+
+    filteredCustomers.forEach(customer => {
+        if (customer.status === 'Active') stats.active++;
+
+        const feeStatus = customer.feeHistory?.[monthKey] || 'unpaid';
+        const monthlyFee = parseFloat(customer.monthlyFee) || 0;
+
+        if (feeStatus === 'paid') {
+            stats.collected += monthlyFee;
+        } else {
+            stats.receivable += monthlyFee;
+        }
+
+        const requiredDecs = getRequiredDeclarations(customer, currentDate);
+        const completedDecs = customer.declarationHistory?.[monthKey] || [];
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>
+                <div style="font-weight: 500;">${customer.name}</div>
+                <div style="font-size: 0.8rem; color: #a0a0b0;">${customer.taxId}</div>
+            </td>
+            <td>${monthlyFee.toLocaleString('tr-TR')} ₺</td>
+            <td>
+                <label class="checkbox-group" style="padding: 0.25rem; border: none; background: none;">
+                    <input type="checkbox" 
+                        ${feeStatus === 'paid' ? 'checked' : ''} 
+                        onchange="toggleFee('${customer.id}', '${monthKey}', this.checked)">
+                    <span style="font-size: 0.9rem;">${feeStatus === 'paid' ? 'Ödendi' : 'Ödenmedi'}</span>
+                </label>
+            </td>
+            <td><span class="status-badge ${customer.status.toLowerCase()}">${customer.status === 'Active' ? 'Aktif' : 'Kapalı'}</span></td>
+            <td>
+                <div style="display: flex; flex-wrap: wrap;">
+                    ${requiredDecs.map(dec => {
+            const isDone = completedDecs.includes(dec);
+            if (isDone) stats.submitted++; else stats.pending++;
+            const deadline = DECLARATION_TYPES[dec].deadline;
+            return `
+                            <div class="declaration-tag ${isDone ? 'completed' : ''}" 
+                                 onclick="toggleDeclaration('${customer.id}', '${monthKey}', '${dec}')"
+                                 title="Son Tarih: ${deadline} ${trMonth}">
+                                <input type="checkbox" ${isDone ? 'checked' : ''}>
+                                ${DECLARATION_TYPES[dec].name} (${deadline})
+                            </div>
+                        `;
+        }).join('')}
+                </div>
+            </td>
+            <td>
+                <button class="action-btn" onclick="editCustomer('${customer.id}')"><i class="fa-solid fa-pen"></i></button>
+                <button class="action-btn" onclick="deleteCustomer('${customer.id}')" style="color: var(--danger);"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        `;
+        els.customerTableBody.appendChild(row);
+    });
+
+    els.totalSubmitted.textContent = stats.submitted;
+    els.totalPending.textContent = stats.pending;
+    els.totalReceivable.textContent = stats.receivable.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) + ' ₺';
+    els.totalCollected.textContent = stats.collected.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) + ' ₺';
+    els.activeCustomerCount.textContent = stats.active;
+}
+
+function renderCumulativeView(filteredCustomers) {
+    els.customerTableBody.innerHTML = `
+        <tr>
+            <td colspan="6" style="text-align: center; padding: 2rem;">
+                <i class="fa-solid fa-chart-line" style="font-size: 2rem; color: var(--accent-blue); margin-bottom: 1rem;"></i>
+                <p>Kümülatif görünüm geliştirilme aşamasındadır.</p>
+                <p>Şu an için aylık bazda toplam alacak: ${els.totalReceivable.textContent}</p>
+            </td>
+        </tr>
+    `;
+}
+
+// ====================
+// ACTIONS
+// ====================
+function toggleFee(customerId, monthKey, isPaid) {
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer.feeHistory) customer.feeHistory = {};
+    customer.feeHistory[monthKey] = isPaid ? 'paid' : 'unpaid';
+    updateCustomerField(customerId, 'feeHistory', customer.feeHistory);
+}
+
+function toggleDeclaration(customerId, monthKey, type) {
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer.declarationHistory) customer.declarationHistory = {};
+    if (!customer.declarationHistory[monthKey]) customer.declarationHistory[monthKey] = [];
+
+    const list = customer.declarationHistory[monthKey];
+    if (list.includes(type)) {
+        customer.declarationHistory[monthKey] = list.filter(t => t !== type);
+    } else {
+        list.push(type);
+    }
+    updateCustomerField(customerId, 'declarationHistory', customer.declarationHistory);
+}
+
+function deleteCustomer(id) {
+    if (confirm('Bu müşteriyi silmek istediğinize emin misiniz?')) {
+        deleteCustomerFromDB(id);
+    }
+}
+
+function editCustomer(id) {
+    const customer = customers.find(c => c.id === id);
+    if (!customer) return;
+
+    const form = els.addCustomerForm;
+    form.dataset.editId = id;
+
+    form.name.value = customer.name;
+    form.companyType.value = customer.companyType;
+    form.address.value = customer.address || '';
+    form.phone.value = customer.phone || '';
+    form.email.value = customer.email || '';
+    form.taxId.value = customer.taxId;
+    form.taxOffice.value = customer.taxOffice || '';
+    form.mersis.value = customer.mersis || '';
+    form.tradeRegistry.value = customer.tradeRegistry || '';
+    form.monthlyFee.value = customer.monthlyFee || '';
+    form.openingDate.value = customer.openingDate || '';
+    form.hasEmployees.value = customer.hasEmployees;
+    form.eLedger.value = customer.eLedger;
+
+    const checkboxes = form.querySelectorAll('input[name="declarations"]');
+    checkboxes.forEach(cb => cb.checked = customer.declarations.includes(cb.value));
+
+    els.partnersContainer.innerHTML = '';
+    if (customer.partners && customer.partners.length > 0) {
+        customer.partners.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'partner-row';
+            div.innerHTML = `
+                <input type="text" placeholder="Ad Soyad" class="partner-name" value="${p.name}">
+                <input type="text" placeholder="TC No" class="partner-tc" value="${p.tc}">
+            `;
+            els.partnersContainer.appendChild(div);
+        });
+    } else {
+        addPartnerField();
+    }
+
+    openModal();
+}
+
+// ====================
+// MODAL & FORM
+// ====================
+function openModal() {
+    els.modalOverlay.classList.remove('hidden');
+}
+
+function closeModal() {
+    els.modalOverlay.classList.add('hidden');
+    els.addCustomerForm.reset();
+    delete els.addCustomerForm.dataset.editId;
+    els.partnersContainer.innerHTML = '';
+    addPartnerField();
+}
+
+function addPartnerField() {
+    const div = document.createElement('div');
+    div.className = 'partner-row';
+    div.innerHTML = `
+        <input type="text" placeholder="Ad Soyad" class="partner-name">
+        <input type="text" placeholder="TC No" class="partner-tc">
+    `;
+    els.partnersContainer.appendChild(div);
+}
+
+async function handleFormSubmit(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+
+    const partners = [];
+    const pNames = e.target.querySelectorAll('.partner-name');
+    const pTcs = e.target.querySelectorAll('.partner-tc');
+    pNames.forEach((input, i) => {
+        if (input.value) partners.push({ name: input.value, tc: pTcs[i].value });
+    });
+
+    const customerData = {
+        id: e.target.dataset.editId || 'new',
+        name: formData.get('name'),
+        companyType: formData.get('companyType'),
+        address: formData.get('address'),
+        phone: formData.get('phone'),
+        email: formData.get('email'),
+        taxId: formData.get('taxId'),
+        taxOffice: formData.get('taxOffice'),
+        mersis: formData.get('mersis'),
+        tradeRegistry: formData.get('tradeRegistry'),
+        partners: partners,
+        monthlyFee: formData.get('monthlyFee'),
+        openingDate: formData.get('openingDate'),
+        hasEmployees: formData.get('hasEmployees'),
+        eLedger: formData.get('eLedger'),
+        declarations: formData.getAll('declarations'),
+        status: 'Active',
+        feeHistory: {},
+        declarationHistory: {}
+    };
+
+    if (e.target.dataset.editId) {
+        const existing = customers.find(c => c.id === customerData.id);
+        customerData.feeHistory = existing.feeHistory || {};
+        customerData.declarationHistory = existing.declarationHistory || {};
+    }
+
+    await saveCustomer(customerData);
+    closeModal();
+}
+
+// ====================
+// EXPORT
+// ====================
+function exportToCSV() {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Müşteri Adı,Vergi No,Telefon,Aylık Ücret,Durum\n";
+
+    customers.forEach(c => {
+        const row = `${c.name},${c.taxId},${c.phone},${c.monthlyFee},${c.status}`;
+        csvContent += row + "\n";
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "musteri_listesi.csv");
+    document.body.appendChild(link);
+    link.click();
+}
+
+function checkUpcomingDeadlines() {
+    const today = new Date();
+    const day = today.getDate();
+    console.log("Checking deadlines for day:", day);
+}
+
+// Start
+init();
+
+/* Reset & Base Styles */
+:root {
+    --bg-dark: #1a1b23;
+    --bg-card: #242530;
+    --bg-hover: #2f303e;
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0b0;
+    --accent-blue: #4f46e5;
+    --accent-blue-hover: #4338ca;
+    --accent-green: #10b981;
+    --accent-green-dim: rgba(16, 185, 129, 0.1);
+    --accent-orange: #f59e0b;
+    --accent-orange-dim: rgba(245, 158, 11, 0.1);
+    --accent-purple: #8b5cf6;
+    --accent-purple-dim: rgba(139, 92, 246, 0.1);
+    --danger: #ef4444;
+    --danger-dim: rgba(239, 68, 68, 0.1);
+    --border: #374151;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Layout */
+.app-container {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+    background-color: var(--bg-card);
+    border-right: 1px solid var(--border);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-blue);
+}
+
+.menu {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+}
+
+.menu-item:hover,
+.menu-item.active {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.menu-item.active {
+    background-color: var(--accent-blue);
+}
+
+.user-profile {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.avatar {
+    width: 40px;
+    height: 40px;
+    background-color: var(--accent-purple);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+}
+
+.info {
+    display: flex;
+    flex-direction: column;
+}
+
+.name {
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.role {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+/* Main Content */
+.main-content {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.top-header {
+    padding: 1.5rem 2rem;
+    background-color: var(--bg-dark);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.month-selector {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+}
+
+.icon-btn:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.view-toggles {
+    display: flex;
+    background-color: var(--bg-card);
+    padding: 0.25rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+}
+
+.toggle-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.toggle-btn.active {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.content-wrapper {
+    padding: 2rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Cards */
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.card {
+    background-color: var(--bg-card);
+    padding: 1.5rem;
+    border-radius: 1rem;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.card-icon {
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+    font-size: 1.25rem;
+}
+
+.card-icon.green {
+    background-color: var(--accent-green-dim);
+    color: var(--accent-green);
+}
+
+.card-icon.orange {
+    background-color: var(--accent-orange-dim);
+    color: var(--accent-orange);
+}
+
+.card-icon.blue {
+    background-color: rgba(79, 70, 229, 0.1);
+    color: var(--accent-blue);
+}
+
+.card-icon.purple {
+    background-color: var(--accent-purple-dim);
+    color: var(--accent-purple);
+}
+
+.card-info h3 {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.amount {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.trend {
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.trend.positive {
+    color: var(--accent-green);
+}
+
+.subtitle {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+/* Table */
+.table-container {
+    background-color: var(--bg-card);
+    border-radius: 1rem;
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+.table-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.btn-primary {
+    background-color: var(--accent-blue);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background-color 0.2s;
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-blue-hover);
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+    padding: 1rem 1.5rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.data-table th {
+    background-color: var(--bg-hover);
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.data-table tr:hover {
+    background-color: var(--bg-hover);
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.status-badge.active {
+    background: var(--accent-green-dim);
+    color: var(--accent-green);
+}
+
+.status-badge.pending {
+    background: var(--accent-orange-dim);
+    color: var(--accent-orange);
+}
+
+.status-badge.closed {
+    background: var(--danger-dim);
+    color: var(--danger);
+}
+
+.action-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    transition: color 0.2s;
+}
+
+.action-btn:hover {
+    color: var(--accent-blue);
+}
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(5px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    opacity: 1;
+    transition: opacity 0.3s;
+}
+
+.modal-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.modal {
+    background-color: var(--bg-card);
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    border-radius: 1rem;
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    padding: 1.5rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+/* Form Elements */
+.form-section-title {
+    font-size: 1rem;
+    color: var(--accent-blue);
+    margin-bottom: 1rem;
+    margin-top: 1.5rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+}
+
+.form-section-title:first-child {
+    margin-top: 0;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+input,
+select {
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+input:focus,
+select:focus {
+    border-color: var(--accent-blue);
+}
+
+/* Partners */
+.partner-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.btn-secondary {
+    background-color: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.text-sm {
+    font-size: 0.8rem;
+    padding: 0.5rem 1rem;
+}
+
+/* Checkbox Group */
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    background-color: var(--bg-dark);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    color: var(--text-primary);
+}
+
+input[type="checkbox"] {
+    width: 1.2rem;
+    height: 1.2rem;
+    accent-color: var(--accent-blue);
+}
+
+/* Declaration Tags in Table */
+.declaration-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 0.4rem;
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border);
+    margin-right: 0.5rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.declaration-tag:hover {
+    border-color: var(--accent-blue);
+}
+
+.declaration-tag.completed {
+    background-color: var(--accent-green-dim);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+}
+
+.declaration-tag input {
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+}
