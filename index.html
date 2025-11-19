@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AtillaSavaş - Müşteri Takip</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fa-solid fa-chart-pie"></i>
+                <span>AtillaSavaş</span>
+            </div>
+            <nav class="menu">
+                <a href="#" class="menu-item active"><i class="fa-solid fa-house"></i><span>Panel</span></a>
+                <a href="#" class="menu-item" onclick="exportToCSV()"><i class="fa-solid fa-download"></i><span>Dışa Aktar</span></a>
+            </nav>
+            <div class="user-profile">
+                <div class="avatar">A</div>
+                <div class="info">
+                    <span class="name">Atilla</span>
+                    <span class="role">Yönetici</span>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="top-header">
+                <div class="month-selector">
+                    <button id="prevMonth" class="icon-btn"><i class="fa-solid fa-chevron-left"></i></button>
+                    <h2 id="currentMonthDisplay">Kasım 2025</h2>
+                    <button id="nextMonth" class="icon-btn"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+                <div class="view-toggles">
+                    <button class="toggle-btn active" id="btnMonthly">Aylık Görünüm</button>
+                    <button class="toggle-btn" id="btnCumulative">Kümülatif Durum</button>
+                </div>
+            </header>
+
+            <div class="content-wrapper">
+                <div class="cards-grid">
+                    <div class="card">
+                        <div class="card-icon green"><i class="fa-solid fa-file-circle-check"></i></div>
+                        <div class="card-info">
+                            <h3>Verilen Beyanname</h3>
+                            <p class="amount" id="totalSubmitted">0</p>
+                            <span class="subtitle">Bu ay için</span>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon orange"><i class="fa-solid fa-clock"></i></div>
+                        <div class="card-info">
+                            <h3>Verilecek Beyanname</h3>
+                            <p class="amount" id="totalPending">0</p>
+                            <span class="subtitle">Bu ay için</span>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon blue"><i class="fa-solid fa-wallet"></i></div>
+                        <div class="card-info">
+                            <h3>Toplam Alacak</h3>
+                            <p class="amount" id="totalReceivable">0.00 ₺</p>
+                            <span class="trend positive">Bu ay</span>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon green"><i class="fa-solid fa-check-circle"></i></div>
+                        <div class="card-info">
+                            <h3>Tahsil Edilen</h3>
+                            <p class="amount" id="totalCollected">0.00 ₺</p>
+                            <span class="subtitle">Bu ay için</span>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon purple"><i class="fa-solid fa-users"></i></div>
+                        <div class="card-info">
+                            <h3>Aktif Müşteri</h3>
+                            <p class="amount" id="activeCustomerCount">0</p>
+                            <span class="subtitle">Toplam kayıtlı</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Müşteri Listesi</h3>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <input type="text" id="searchInput" placeholder="🔍 Müşteri ara..." style="padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border); background: var(--bg-dark); color: var(--text-primary); min-width: 200px;">
+                            <select id="statusFilter" style="padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border); background: var(--bg-dark); color: var(--text-primary);">
+                                <option value="all">Tüm Durumlar</option>
+                                <option value="Active">Aktif</option>
+                                <option value="Closed">Kapalı</option>
+                            </select>
+                            <button id="btnNewCustomer" class="btn-primary"><i class="fa-solid fa-plus"></i> Yeni Müşteri</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Müşteri Adı</th>
+                                    <th>Aylık Ücret</th>
+                                    <th>Ücret Durumu</th>
+                                    <th>Durum</th>
+                                    <th>Beyannameler (Bu Ay)</th>
+                                    <th>İşlem</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customerTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="modalOverlay" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Yeni Müşteri Ekle</h2>
+                <button id="closeModal" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="addCustomerForm">
+                    <h3 class="form-section-title">Temel Bilgiler</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Müşteri / Firma Adı</label>
+                            <input type="text" name="name" required placeholder="Örn: Mavi Yazılım A.Ş.">
+                        </div>
+                        <div class="form-group">
+                            <label>Firma Türü</label>
+                            <select name="companyType">
+                                <option value="sahis">Şahıs İşletmesi</option>
+                                <option value="sahis_bilanco">Şahıs Bilanço</option>
+                                <option value="ltd">Limited Şirket</option>
+                                <option value="as">Anonim Şirket</option>
+                            </select>
+                        </div>
+                        <div class="form-group full-width">
+                            <label>Adres</label>
+                            <input type="text" name="address" placeholder="Tam adres...">
+                        </div>
+                        <div class="form-group">
+                            <label>Telefon</label>
+                            <input type="tel" name="phone" placeholder="0555 555 55 55">
+                        </div>
+                        <div class="form-group">
+                            <label>E-posta</label>
+                            <input type="email" name="email" placeholder="info@ornek.com">
+                        </div>
+                    </div>
+
+                    <h3 class="form-section-title">Resmi Bilgiler</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Vergi / TC No</label>
+                            <input type="text" name="taxId" required placeholder="10 veya 11 haneli">
+                        </div>
+                        <div class="form-group">
+                            <label>Vergi Dairesi</label>
+                            <input type="text" name="taxOffice">
+                        </div>
+                        <div class="form-group">
+                            <label>Mersis No</label>
+                            <input type="text" name="mersis">
+                        </div>
+                        <div class="form-group">
+                            <label>Ticaret Sicil No</label>
+                            <input type="text" name="tradeRegistry">
+                        </div>
+                    </div>
+
+                    <h3 class="form-section-title">Ortaklar</h3>
+                    <div id="partnersContainer">
+                        <div class="partner-row">
+                            <input type="text" placeholder="Ad Soyad" class="partner-name">
+                            <input type="text" placeholder="TC No" class="partner-tc">
+                        </div>
+                    </div>
+                    <button type="button" id="addPartnerBtn" class="btn-secondary text-sm">+ Ortak Ekle</button>
+
+                    <h3 class="form-section-title">Ayarlar ve Beyannameler</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Aylık Ücret (₺)</label>
+                            <input type="number" name="monthlyFee" placeholder="Örn: 5000" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>Açılış Tarihi</label>
+                            <input type="date" name="openingDate">
+                        </div>
+                        <div class="form-group">
+                            <label>İşçisi Var mı?</label>
+                            <select name="hasEmployees">
+                                <option value="no">Yok</option>
+                                <option value="yes">Var</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>E-Defter Durumu</label>
+                            <select name="eLedger">
+                                <option value="none">Yok</option>
+                                <option value="monthly">Aylık</option>
+                                <option value="quarterly">3 Aylık</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label>Takip Edilecek Beyannameler</label>
+                        <div class="checkbox-group">
+                            <label><input type="checkbox" name="declarations" value="KDV"> KDV</label>
+                            <label><input type="checkbox" name="declarations" value="KDV2"> KDV 2</label>
+                            <label><input type="checkbox" name="declarations" value="MUHSGK"> MUHSGK</label>
+                            <label><input type="checkbox" name="declarations" value="GECICI"> Geçici Vergi</label>
+                            <label><input type="checkbox" name="declarations" value="YILLIK"> Yıllık (Gelir/Kurumlar)</label>
+                            <label><input type="checkbox" name="declarations" value="EDEFTER"> E-Defter</label>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" id="cancelBtn" class="btn-secondary">İptal</button>
+                        <button type="submit" class="btn-primary">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Firebase Config -->
+    <script src="firebase-config.js"></script>
+    
+    <!-- Main Script -->
+    <script src="script.js"></script>
+</body>
+</html>
